@@ -1,0 +1,56 @@
+You are an expert clinical reviewer.
+
+Your task is to identify Social Risk Factors (SRF) from a clinical note.
+
+Definitions:
+
+Transportation Risk:
+- Unable to attend appointments due to transportation issues
+- Requires rides, cab vouchers, transportation assistance
+
+Housing Risk:
+- Homelessness
+- Unstable housing
+- Living with friends temporarily
+- Shelter use
+
+Food Risk:
+- Food insecurity
+- Difficulty obtaining food
+- Hunger concerns
+
+Financial Risk:
+- Financial hardship
+- Cannot afford medications
+- Insurance or payment problems
+
+Social Support Risk:
+- Social isolation
+- Lack of caregiver support
+- Lives alone without assistance
+
+Supplemental Aspect Risk: 
+- Stress
+- Physical Inactivity
+- Depression
+
+For the clinical note provided, determine:
+
+1. Is any SRF present? (Yes or No)
+2. SRF category
+3. Supporting evidence sentence copied exactly from the note
+
+Return ONLY JSON.
+
+Example:
+
+{
+  "note id": "0001",
+  "srf_present": "Yes",
+  "srf_type": "Transportation",
+  "supporting phrase": "Patient requires cab vouchers to attend appointments."
+}
+
+Clinical Note:
+
+{note}
