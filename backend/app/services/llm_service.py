@@ -1,7 +1,9 @@
 from functools import lru_cache
 import json
 from pathlib import Path
+import sys
 import time
+import traceback
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
@@ -51,14 +53,18 @@ def annotate_note(note_id: str, note_text: str) -> AnnotationResult:
             ),
         ]
     )
-    chain = prompt | _get_llm().with_structured_output(SRFStructuredOutput)
-    output = chain.invoke(
-        {
-            "prompt_text": _load_prompt_text(),
-            "note_id": note_id,
-            "note_text": note_text,
-        }
-    )
+    try:
+        chain = prompt | _get_llm().with_structured_output(SRFStructuredOutput)
+        output = chain.invoke(
+            {
+                "prompt_text": _load_prompt_text(),
+                "note_id": note_id,
+                "note_text": note_text,
+            }
+        )
+    except Exception as exc:
+        _log_gateway_exception(exc)
+        raise
 
     return AnnotationResult(
         note_id=note_id,
@@ -75,6 +81,9 @@ def _get_llm():
         raise RuntimeError("langchain-openai is not installed. Run pip install -r requirements.txt.") from exc
 
     _validate_wustl_gateway_settings()
+
+    print(f"WashU AI Gateway model: {settings.model_name}", file=sys.stderr)
+    print(f"WashU AI Gateway base_url: {settings.wustl_ai_gateway_base_url}", file=sys.stderr)
 
     return ChatOpenAI(
         model=settings.model_name,
@@ -123,9 +132,15 @@ def _get_wustl_access_token() -> str:
 
     try:
         with urlopen(request, timeout=30) as response:
-            token_payload = json.loads(response.read().decode("utf-8"))
+            token_response_body = response.read().decode("utf-8")
+            token_payload = json.loads(token_response_body)
+            print(
+                f"WashU token acquisition response: {_redact_token_payload(token_payload)}",
+                file=sys.stderr,
+            )
     except HTTPError as exc:
         error_body = exc.read().decode("utf-8", errors="replace")
+        print(f"WashU token acquisition response body: {error_body}", file=sys.stderr)
         raise RuntimeError(f"WashU AI Gateway token request failed with HTTP {exc.code}: {error_body}") from exc
     except URLError as exc:
         raise RuntimeError(f"WashU AI Gateway token request failed: {exc.reason}") from exc
@@ -138,6 +153,39 @@ def _get_wustl_access_token() -> str:
     _WUSTL_ACCESS_TOKEN = access_token
     _WUSTL_ACCESS_TOKEN_EXPIRES_AT = time.time() + max(expires_in - 60, 0)
     return _WUSTL_ACCESS_TOKEN
+
+
+def _redact_token_payload(token_payload: dict) -> dict:
+    redacted = dict(token_payload)
+    if "access_token" in redacted:
+        redacted["access_token"] = "<redacted>"
+    return redacted
+
+
+def _log_gateway_exception(exc: Exception) -> None:
+    print("WashU AI Gateway request failed.", file=sys.stderr)
+    print(f"MODEL_NAME={settings.model_name}", file=sys.stderr)
+    print(f"base_url={settings.wustl_ai_gateway_base_url}", file=sys.stderr)
+
+    response = getattr(exc, "response", None)
+    response_body = None
+    if response is not None:
+        response_body = getattr(response, "text", None)
+        if callable(response_body):
+            response_body = response_body()
+        if response_body is None and hasattr(response, "content"):
+            content = response.content
+            if isinstance(content, bytes):
+                response_body = content.decode("utf-8", errors="replace")
+            else:
+                response_body = str(content)
+
+    if response_body is None:
+        response_body = getattr(exc, "body", None)
+
+    print(f"Gateway response body: {response_body}", file=sys.stderr)
+    print("Full traceback:", file=sys.stderr)
+    traceback.print_exc(file=sys.stderr)
 
 
 @lru_cache(maxsize=1)

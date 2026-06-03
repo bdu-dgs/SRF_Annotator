@@ -1,8 +1,11 @@
 from datetime import datetime, timezone
 from pathlib import Path
+import sys
+import traceback
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
+from app.core.config import settings
 from app.models.annotation import AnnotationBatchResponse, SaveAnnotationsRequest
 from app.services.csv_service import read_notes_csv, save_annotations_csv
 from app.services.llm_service import annotate_note
@@ -28,7 +31,14 @@ async def analyze(file: UploadFile = File(...)):
     except FileNotFoundError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"LLM analysis failed: {exc}") from exc
+        print("Analyze endpoint failed.", file=sys.stderr)
+        print(f"MODEL_NAME={settings.model_name}", file=sys.stderr)
+        print("Full traceback:", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Analyze failed with {type(exc).__name__}: {exc}",
+        ) from exc
 
     return AnnotationBatchResponse(results=results)
 
