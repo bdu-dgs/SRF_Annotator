@@ -1,5 +1,10 @@
 from functools import lru_cache
+import json
 from pathlib import Path
+import time
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
@@ -9,6 +14,9 @@ from app.models.annotation import AnnotationResult
 
 
 load_dotenv()
+
+_WUSTL_ACCESS_TOKEN: str | None = None
+_WUSTL_ACCESS_TOKEN_EXPIRES_AT = 0.0
 
 
 class SRFStructuredOutput(BaseModel):
@@ -25,7 +33,7 @@ class SRFStructuredOutput(BaseModel):
 
 
 def annotate_note(note_id: str, note_text: str) -> AnnotationResult:
-    """Annotate a clinical note with LangChain and OpenAI structured output."""
+    """Annotate a clinical note with LangChain through the WashU AI Gateway."""
     try:
         from langchain_core.prompts import ChatPromptTemplate
     except ModuleNotFoundError as exc:
@@ -60,21 +68,76 @@ def annotate_note(note_id: str, note_text: str) -> AnnotationResult:
     )
 
 
-@lru_cache(maxsize=1)
 def _get_llm():
     try:
         from langchain_openai import ChatOpenAI
     except ModuleNotFoundError as exc:
         raise RuntimeError("langchain-openai is not installed. Run pip install -r requirements.txt.") from exc
 
-    if not settings.openai_api_key:
-        raise ValueError("OPENAI_API_KEY is not configured.")
+    _validate_wustl_gateway_settings()
 
     return ChatOpenAI(
-        model=settings.openai_model,
-        api_key=settings.openai_api_key,
+        model=settings.model_name,
+        api_key=_get_wustl_access_token(),
+        base_url=settings.wustl_ai_gateway_base_url,
+        default_headers={"X-Api-Key": settings.wustl_api_key},
         temperature=0,
     )
+
+
+def _validate_wustl_gateway_settings() -> None:
+    missing = [
+        name
+        for name, value in {
+            "WUSTL_CLIENT_ID": settings.wustl_client_id,
+            "WUSTL_CLIENT_SECRET": settings.wustl_client_secret,
+            "WUSTL_API_KEY": settings.wustl_api_key,
+            "MODEL_NAME": settings.model_name,
+        }.items()
+        if not value
+    ]
+    if missing:
+        raise ValueError(f"Missing WashU AI Gateway environment variables: {', '.join(missing)}")
+
+
+def _get_wustl_access_token() -> str:
+    global _WUSTL_ACCESS_TOKEN, _WUSTL_ACCESS_TOKEN_EXPIRES_AT
+
+    if _WUSTL_ACCESS_TOKEN and time.time() < _WUSTL_ACCESS_TOKEN_EXPIRES_AT:
+        return _WUSTL_ACCESS_TOKEN
+
+    payload = urlencode(
+        {
+            "grant_type": "client_credentials",
+            "client_id": settings.wustl_client_id,
+            "client_secret": settings.wustl_client_secret,
+            "scope": settings.wustl_token_scope,
+        }
+    ).encode("utf-8")
+    request = Request(
+        settings.wustl_token_url,
+        data=payload,
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        method="POST",
+    )
+
+    try:
+        with urlopen(request, timeout=30) as response:
+            token_payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as exc:
+        error_body = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"WashU AI Gateway token request failed with HTTP {exc.code}: {error_body}") from exc
+    except URLError as exc:
+        raise RuntimeError(f"WashU AI Gateway token request failed: {exc.reason}") from exc
+
+    access_token = token_payload.get("access_token")
+    if not access_token:
+        raise RuntimeError("WashU AI Gateway token response did not include access_token.")
+
+    expires_in = int(token_payload.get("expires_in", 3600))
+    _WUSTL_ACCESS_TOKEN = access_token
+    _WUSTL_ACCESS_TOKEN_EXPIRES_AT = time.time() + max(expires_in - 60, 0)
+    return _WUSTL_ACCESS_TOKEN
 
 
 @lru_cache(maxsize=1)
