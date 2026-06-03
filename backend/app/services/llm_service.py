@@ -82,14 +82,15 @@ def _get_llm():
 
     _validate_wustl_gateway_settings()
 
-    print(f"WashU AI Gateway model: {settings.model_name}", file=sys.stderr)
-    print(f"WashU AI Gateway base_url: {settings.wustl_ai_gateway_base_url}", file=sys.stderr)
+    access_token = _get_wustl_access_token()
+    default_headers = {"X-Api-Key": settings.wustl_api_key}
+    _log_chat_completion_request_auth(access_token, default_headers)
 
     return ChatOpenAI(
         model=settings.model_name,
-        api_key=_get_wustl_access_token(),
+        api_key=access_token,
         base_url=settings.wustl_ai_gateway_base_url,
-        default_headers={"X-Api-Key": settings.wustl_api_key},
+        default_headers=default_headers,
         temperature=0,
     )
 
@@ -160,6 +161,14 @@ def _redact_token_payload(token_payload: dict) -> dict:
     if "access_token" in redacted:
         redacted["access_token"] = "<redacted>"
     return redacted
+
+
+def _log_chat_completion_request_auth(access_token: str, default_headers: dict) -> None:
+    print("WashU AI Gateway chat completion request auth:", file=sys.stderr)
+    print(f"MODEL_NAME={settings.model_name}", file=sys.stderr)
+    print(f"base_url={settings.wustl_ai_gateway_base_url}", file=sys.stderr)
+    print(f"X-Api-Key header present={bool(default_headers.get('X-Api-Key'))}", file=sys.stderr)
+    print(f"Bearer token present={bool(access_token)}", file=sys.stderr)
 
 
 def _log_gateway_exception(exc: Exception) -> None:
