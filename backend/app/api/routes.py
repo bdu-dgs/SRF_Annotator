@@ -17,6 +17,7 @@ router = APIRouter()
 @router.post("/analyze", response_model=AnnotationBatchResponse)
 async def analyze(file: UploadFile = File(...)):
     """Upload a CSV of clinical notes and return structured SRF annotations."""
+    print("=== ENTERED FUNCTION analyze ===")
     if not file.filename or not file.filename.lower().endswith(".csv"):
         raise HTTPException(status_code=400, detail="Upload must be a CSV file.")
 

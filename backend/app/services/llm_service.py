@@ -36,6 +36,7 @@ class SRFStructuredOutput(BaseModel):
 
 def annotate_note(note_id: str, note_text: str) -> AnnotationResult:
     """Annotate a clinical note with LangChain through the WashU AI Gateway."""
+    print("=== ENTERED FUNCTION annotate_note ===")
     try:
         from langchain_core.prompts import ChatPromptTemplate
     except ModuleNotFoundError as exc:
@@ -87,6 +88,7 @@ def debug_llm_hello() -> str:
 
 
 def _get_llm():
+    print("=== ENTERED FUNCTION _get_llm ===")
     try:
         from langchain_openai import ChatOpenAI
     except ModuleNotFoundError as exc:
@@ -135,6 +137,7 @@ def _validate_wustl_gateway_settings() -> None:
 
 def _get_wustl_access_token() -> str:
     global _WUSTL_ACCESS_TOKEN, _WUSTL_ACCESS_TOKEN_EXPIRES_AT
+    print("=== ENTERED FUNCTION _get_wustl_access_token ===")
 
     if _WUSTL_ACCESS_TOKEN and time.time() < _WUSTL_ACCESS_TOKEN_EXPIRES_AT:
         return _WUSTL_ACCESS_TOKEN
