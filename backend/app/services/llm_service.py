@@ -54,7 +54,7 @@ def annotate_note(note_id: str, note_text: str) -> AnnotationResult:
         ]
     )
     try:
-        chain = prompt | _get_llm().with_structured_output(SRFStructuredOutput)
+        chain = prompt | _get_llm()
         output = chain.invoke(
             {
                 "prompt_text": _load_prompt_text(),
@@ -68,9 +68,9 @@ def annotate_note(note_id: str, note_text: str) -> AnnotationResult:
 
     return AnnotationResult(
         note_id=note_id,
-        srf_present=output.srf_present,
-        srf_type=output.srf_type,
-        supporting_phrase=output.supporting_phrase,
+        srf_present=False,
+        srf_type="raw_text",
+        supporting_phrase=str(getattr(output, "content", output)),
     )
 
 
