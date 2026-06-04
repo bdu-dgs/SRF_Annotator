@@ -95,8 +95,18 @@ def _get_llm():
     _validate_wustl_gateway_settings()
 
     access_token = _get_wustl_access_token()
+    print("=== DEBUG TOKEN ACQUIRED ===", flush=True)
+    print("Token acquired successfully", flush=True)
+    print(f"Token length: {len(access_token)}", flush=True)
+    print(f"Token prefix: {access_token[:20]}...", flush=True)
     _log_token_acquired(access_token)
     default_headers = {"X-Api-Key": settings.wustl_api_key}
+    print("=== DEBUG BEFORE CHATOPENAI ===", flush=True)
+    print("About to call WashU AI Gateway", flush=True)
+    print(f"Base URL: {settings.wustl_ai_gateway_base_url}", flush=True)
+    print(f"Model: {settings.model_name}", flush=True)
+    print(f"X-Api-Key present: {bool(default_headers.get('X-Api-Key'))}", flush=True)
+    print(f"Authorization token present: {bool(access_token)}", flush=True)
     _log_chat_completion_request_auth(access_token, default_headers)
 
     return ChatOpenAI(
