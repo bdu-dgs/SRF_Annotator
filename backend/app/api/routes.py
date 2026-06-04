@@ -8,7 +8,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from app.core.config import settings
 from app.models.annotation import AnnotationBatchResponse, SaveAnnotationsRequest
 from app.services.csv_service import read_notes_csv, save_annotations_csv
-from app.services.llm_service import annotate_note
+from app.services.llm_service import annotate_note, debug_llm_hello
 
 
 router = APIRouter()
@@ -55,3 +55,17 @@ async def save_annotations(payload: SaveAnnotationsRequest):
         "path": str(saved_path),
         "rows_saved": len(payload.annotations),
     }
+
+
+@router.get("/debug-llm")
+async def debug_llm():
+    """Temporary endpoint for debugging Render WashU LLM connectivity."""
+    try:
+        content = debug_llm_hello()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Debug LLM request failed with {type(exc).__name__}. Check Render logs.",
+        ) from exc
+
+    return {"status": "ok", "response": content}

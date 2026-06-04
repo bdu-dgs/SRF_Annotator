@@ -74,6 +74,18 @@ def annotate_note(note_id: str, note_text: str) -> AnnotationResult:
     )
 
 
+def debug_llm_hello() -> str:
+    """Send a minimal request through the production WashU ChatOpenAI config."""
+    try:
+        response = _get_llm().invoke("Hello")
+    except Exception as exc:
+        _log_debug_llm_exception(exc)
+        raise
+
+    content = getattr(response, "content", response)
+    return str(content)
+
+
 def _get_llm():
     try:
         from langchain_openai import ChatOpenAI
@@ -193,6 +205,36 @@ def _log_gateway_exception(exc: Exception) -> None:
         response_body = getattr(exc, "body", None)
 
     print(f"Gateway response body: {response_body}", file=sys.stderr)
+    print("Full traceback:", file=sys.stderr)
+    traceback.print_exc(file=sys.stderr)
+
+
+def _log_debug_llm_exception(exc: Exception) -> None:
+    print("/debug-llm WashU AI Gateway request failed.", file=sys.stderr)
+    print(f"Full exception: {type(exc).__name__}: {exc!r}", file=sys.stderr)
+
+    response = getattr(exc, "response", None)
+    status_code = getattr(response, "status_code", None) if response is not None else None
+    if status_code is None:
+        status_code = getattr(exc, "status_code", None)
+
+    response_body = None
+    if response is not None:
+        response_body = getattr(response, "text", None)
+        if callable(response_body):
+            response_body = response_body()
+        if response_body is None and hasattr(response, "content"):
+            content = response.content
+            if isinstance(content, bytes):
+                response_body = content.decode("utf-8", errors="replace")
+            else:
+                response_body = str(content)
+
+    if response_body is None:
+        response_body = getattr(exc, "body", None)
+
+    print(f"HTTP status code: {status_code}", file=sys.stderr)
+    print(f"Response body: {response_body}", file=sys.stderr)
     print("Full traceback:", file=sys.stderr)
     traceback.print_exc(file=sys.stderr)
 
